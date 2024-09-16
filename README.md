@@ -1,0 +1,1 @@
+# basic-xrp-wallet
