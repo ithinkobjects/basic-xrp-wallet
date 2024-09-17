@@ -3,6 +3,7 @@ import './manage-account.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faThumbsUp, faTrash, faList } from '@fortawesome/free-solid-svg-icons';
 import Button from 'react-bootstrap/Button';
+import { Link } from 'react-router-dom';
 
 function ManageAccount () {
   return (
@@ -25,6 +26,15 @@ function ManageAccount () {
           </div>
         </li>
       </ul>
+
+      <div className='action-buttons'>
+        <Link to='/import-account'>
+          <Button variant='primary'>Import</Button>
+        </Link>
+        <Link to='/generate-account'>
+          <Button variant='success'>Generate New</Button>
+        </Link>
+      </div>
     </div>
   );
 };
