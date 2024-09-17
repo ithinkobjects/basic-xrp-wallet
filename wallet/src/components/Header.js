@@ -1,14 +1,17 @@
 import './header.scss';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faWallet, faGear } from '@fortawesome/free-solid-svg-icons';
+import { useNavigate } from 'react-router-dom';
 
 function Header () {
-  const handleSwitchToHome = () => {
+  const navigate = useNavigate();
 
+  const handleSwitchToHome = () => {
+    navigate('/');
   };
 
   const handleSwitchToSettings = () => {
-
+    navigate('/manage-account');
   };
 
   return (<header>
