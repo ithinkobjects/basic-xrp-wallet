@@ -1,4 +1,4 @@
-import { Client, dropsToXrp } from 'xrpl';
+import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 // Create a context
@@ -10,6 +10,79 @@ export const AccountProvider = ({children}) => {
   const [accounts, setAccounts] = useState([]);
   const [balance, setBalance] = useState();
   const [reserve, setReserve] = useState();
+  const [transactions, setTransactions] = useState([]);
+
+  const _getBalance = useCallback(async (account) => {
+    if (account) {
+      // Create XRPL connection
+      const client = new Client(process.env.REACT_APP_NETWORK);
+      await client.connect();
+      // Get account balance from latest ledger
+        // Disconnect
+      try {
+        const res = await client.request({
+          account: account.address,
+          command: 'account_info',
+          ledger_index: 'validated', // = most recent; optional: specify index
+        });
+
+        // Convert balance from drops to XRP
+        setBalance(dropsToXrp(res.result.account_data.Balance));
+
+      } catch (error) {
+        console.log(error);
+        setBalance();
+      } finally {
+        client.disconnect();
+      }
+
+    }
+  }, []);
+
+  const _getTransactions = useCallback(async (account) => {
+    if (account) {
+      const client = new Client(process.env.REACT_APP_NETWORK);
+      await client.connect();
+
+      try {
+        const res = await client.request({
+          account: account.address,
+          command: 'account_tx',
+          ledger_index_min: -1, // Get tx from specified time period
+          ledger_index_max: -1, // Get tx to specified period end
+          limit: 20, // Limit of tx to fetch
+          forward: false, // Returns from newest to oldest
+        });
+
+        const filteredTxs = res.result.transactions.filter(tx => {
+          // If Tx is a XRP payment tx, return true
+          if (tx.tx_json.TransactionType !== 'Payment') {
+            return false;
+          };
+          return typeof tx.meta.delivered_amount === 'string';
+        }).map((tx) => {
+          return {
+            account: tx.tx_json.Account,
+            destination: tx.tx_json.Destination,
+            hash: tx.hash,
+            direction: tx.tx_json.Account === account.address ? 'Sent' : 'Received',
+            date: new Date((tx.tx_json.date + 946684800) * 1000),
+            transactionResult: tx.meta.TransactionResult,
+            amount: tx.meta.TransactionResult === 'tesSUCCESS' ?
+              dropsToXrp(tx.meta?.delivered_amount) : 0,
+          };
+        });
+
+        setTransactions(filteredTxs);
+
+      } catch (error) {
+        console.log(error);
+        setTransactions([]);
+      } finally {
+        client.disconnect();
+      };
+    };
+  }, []);
 
   useEffect(() => {
     const storedDefault = JSON.parse(localStorage.getItem('selectedAccount'));
@@ -21,7 +94,6 @@ export const AccountProvider = ({children}) => {
     if (storedAccounts) {
       setAccounts(storedAccounts);
     };
-
     
     const getCurrentReserve = async () => {
       const client = new Client(process.env.REACT_APP_NETWORK);
@@ -45,40 +117,19 @@ export const AccountProvider = ({children}) => {
     getCurrentReserve();
   }, []);
 
-  const _getBalance = useCallback(async (account) => {
-    if (account) {
-      // Create XRPL connection
-      const client = new Client(process.env.REACT_APP_NETWORK);
-      await client.connect();
-      // Get account balance from latest ledger
-        // Disconnect
-      try {
-        const res = await client.request({
-          command: 'account_info',
-          account: account.address,
-          ledger_index: 'validated', // = most recent; optional: specify index
-        });
-
-        // Convert balance from drops to XRP
-        setBalance(dropsToXrp(res.result.account_data.Balance));
-
-      } catch (error) {
-        console.log(error);
-        setBalance();
-      } finally {
-        client.disconnect();
-      }
-
-    }
-  }, []);
-
   useEffect(() => {
     _getBalance(selectedAccount);
-  }, [selectedAccount, _getBalance]); // Use selectedAccount and re-run on change
+    _getTransactions(selectedAccount);
+  }, [selectedAccount, _getBalance, _getTransactions]); // Use selectedAccount and re-run on change
+
 
   const refreshBalance = () => {
     _getBalance(selectedAccount);
     return balance;
+  }
+
+  const refreshTransactions = () => {
+    _getTransactions(selectedAccount);
   }
 
   const selectAccount = (account) => {
@@ -115,10 +166,44 @@ export const AccountProvider = ({children}) => {
     });
   };
 
+  const sendXrp = async (amount, destination, destinationTag) => {
+    if (!selectedAccount) throw new Error('No wallet selected');
+
+    const wallet = Wallet.fromSeed(selectedAccount.seed);
+    const client = new Client(process.env.REACT_APP_NETWORK);
+    await client.connect();
+
+    try {
+      const payment = {
+        TransactionType: 'Payment',
+        Account: selectedAccount.address,
+        Amount: xrpToDrops(amount),
+        Destination: destination,
+      };
+
+      if (destinationTag) {
+        payment.DestinationTag = parseInt(destinationTag);
+      };
+
+      const preparedTx = await client.autofill(payment);
+      const signedTx = wallet.sign(preparedTx);
+      await client.submitAndWait(signedTx.tx_blob);
+
+    } catch (error) {
+      console.log(error);
+      
+    } finally {
+      await client.disconnect();
+      refreshBalance(selectedAccount);
+      refreshTransactions(selectedAccount);
+    }
+  };
+
   return (
     <AccountContext.Provider value={{
-        accounts, reserve, balance,
-        addAccount, deleteAccount, selectAccount, refreshBalance
+        accounts, reserve, balance, transactions,
+        addAccount, deleteAccount, selectAccount, refreshBalance,
+        refreshTransactions, sendXrp,
       }}>
       {children}
     </AccountContext.Provider>

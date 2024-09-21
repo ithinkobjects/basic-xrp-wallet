@@ -23,7 +23,7 @@ function Balance () {
   };
 
   const ReserveDisplay = () => {
-    return <div className='reserve'>Reserve (XRP): {balance}</div>;
+    return <div className='reserve'>Reserve (XRP): {reserve}</div>;
   };
 
   const handleBalanceRefresh = () => {

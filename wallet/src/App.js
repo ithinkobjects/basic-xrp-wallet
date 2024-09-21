@@ -6,6 +6,7 @@ import Main from './pages/Main';
 import ManageAccount from './pages/ManageAccount';
 import ImportAccount from './pages/ImportAccount';
 import GenerateAccount from './pages/GenerateAccount';
+import Send from './pages/Send';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
             <Route path='/manage-account' element={<ManageAccount/>}></Route>
             <Route path='/import-account' element={<ImportAccount/>}></Route>
             <Route path='/generate-account' element={<GenerateAccount/>}></Route>
+            <Route path='/send' element={<Send/>}></Route>
           </Routes>
         </main>
       <Footer/>
