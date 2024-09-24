@@ -13,6 +13,7 @@ export const AccountProvider = ({children}) => {
   const [balance, setBalance] = useState();
   const [reserve, setReserve] = useState();
   const [transactions, setTransactions] = useState([]);
+  const [ledger, setLedger] = useState();
 
   const _getBalance = useCallback(async (account) => {
     if (account) {
@@ -175,21 +176,22 @@ export const AccountProvider = ({children}) => {
     };
 
     const handleLedgerStream = async (e) => {
-      console.log(e);
+      console.log('Ledger stream', e);
+      setLedger(e);
     };
 
-    
     const listenToLedger = async () => {
       try {
         if (!client.current.isConnected()) await client.current.connect();
         client.current.on('ledgerClosed', handleLedgerStream);
         await client.current.request({
           command: 'subscribe',
+          streams: ['ledger'],
         });
       } catch (error) {
-        console.log(error);
+        console.log('Ledger stream error', error);
       }
-    }
+    };
 
     listenToLedger();
   }, []);
@@ -274,6 +276,7 @@ export const AccountProvider = ({children}) => {
   return (
     <AccountContext.Provider value={{
         accounts, reserve, balance, transactions, selectedAccount,
+        ledger,
         addAccount, deleteAccount, selectAccount, refreshBalance,
         refreshTransactions, sendXrp,
       }}>
