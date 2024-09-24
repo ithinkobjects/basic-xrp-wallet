@@ -1,11 +1,13 @@
 import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { ToastManager } from './../components/Toast'
 
 // Create a context
 const AccountContext = createContext();
 
 // Provider component
 export const AccountProvider = ({children}) => {
+  const client = useRef();
   const [selectedAccount, setSelectedAccount] = useState({});
   const [accounts, setAccounts] = useState([]);
   const [balance, setBalance] = useState();
@@ -118,9 +120,79 @@ export const AccountProvider = ({children}) => {
   }, []);
 
   useEffect(() => {
+    if (!client.current) {
+      client.current = new Client(process.env.REACT_APP_NETWORK);
+    };
+
+    const onTransaction = async (e) => {
+      if (e.meta.TransactionResult === 'tesSUCCESS') {
+        if (e.tx_json.Account === selectedAccount.address) {
+          ToastManager.addToast(`Successfully sent ${dropsToXrp(e.meta.delivered_amount)} XRP`)
+        } else if (e.tx_json.Destination === selectedAccount.address) {
+          ToastManager.addToast(`Successfully received ${dropsToXrp(e.meta.delivered_amount)} XRP`);
+        }
+      } else {
+        ToastManager.addToast('Failed');
+      };
+      _getBalance(selectedAccount);
+      _getTransactions(selectedAccount);
+    };
+  
+    const listenToAccount = async () => {
+      try {
+        if (!client.current.isConnected()) await client.current.connect();
+        client.current.on('transaction', onTransaction);
+        await client.current.request({
+          command: 'subscribe', // Can sub to arr of accounts
+          accounts: [selectedAccount?.address],
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    selectedAccount && listenToAccount();
     _getBalance(selectedAccount);
     _getTransactions(selectedAccount);
+
+    return () => {
+      if (client.current.isConnected()) {
+        (async () => {
+          client.current.removeListener('transaction', onTransaction);
+          await client.current.request({
+            command: 'unsubscribe',
+            accounts:[selectedAccount.address]
+          });
+        })();
+      };
+    };
+
   }, [selectedAccount, _getBalance, _getTransactions]); // Use selectedAccount and re-run on change
+
+  useEffect(() => {
+    if (!client.current) {
+      client.current = new Client(process.env.REACT_APP_NETWORK);
+    };
+
+    const handleLedgerStream = async (e) => {
+      console.log(e);
+    };
+
+    
+    const listenToLedger = async () => {
+      try {
+        if (!client.current.isConnected()) await client.current.connect();
+        client.current.on('ledgerClosed', handleLedgerStream);
+        await client.current.request({
+          command: 'subscribe',
+        });
+      } catch (error) {
+        console.log(error);
+      }
+    }
+
+    listenToLedger();
+  }, []);
 
 
   const refreshBalance = () => {
@@ -201,7 +273,7 @@ export const AccountProvider = ({children}) => {
 
   return (
     <AccountContext.Provider value={{
-        accounts, reserve, balance, transactions,
+        accounts, reserve, balance, transactions, selectedAccount,
         addAccount, deleteAccount, selectAccount, refreshBalance,
         refreshTransactions, sendXrp,
       }}>

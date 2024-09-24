@@ -7,10 +7,12 @@ import ManageAccount from './pages/ManageAccount';
 import ImportAccount from './pages/ImportAccount';
 import GenerateAccount from './pages/GenerateAccount';
 import Send from './pages/Send';
+import { ToastContainer } from './components/Toast';
 
 function App() {
   return (
     <BrowserRouter>
+    <ToastContainer />
       <Header/>
         <main>
           <Routes>
